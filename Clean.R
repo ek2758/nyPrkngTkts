@@ -1,9 +1,9 @@
 library(stringr)
-library(plyr)
-library(reshape2)
+library(data.table)
+library(bit64)
 
 # Scan file from Department of Finance per line
-tktsScan <- scan("DOFOriginal.csv", character(0), sep="\n")
+tktsScan <- scan("Data/DOFOriginal.csv", character(0), sep="\n")
 head(tktsScan)
 tktsScan[856314] # Sample problem row
 
@@ -30,4 +30,14 @@ str_count(badRows, ",")
 
 # Append datasets back together to create fixed CSV
 tkts <- append(goodRows, badRows)
-tktsData <- colsplit(tkts, ",", c())
+
+# Properly write CSV table without header. write.csv doesn't work.
+write.table(tkts, file = "Data/tkts.csv", quote = FALSE, sep = ",", row.names = FALSE, col.names = FALSE)
+
+# Create data table of tickets -- takes less than 12 seconds. Awesome.
+tktsDT <- fread("Data/tkts.csv", sep = ",", header=FALSE, verbose=TRUE)
+
+# # These methods takes for.ever. and don't reasonably work
+# tktsDF <- colsplit(tkts, ",", c("smmsNo","lcnsPlt","vhclMk","vhclBdy","vhclExp",
+#                                   "violDt","violTime","violCd","violAddrss","violStrt","fine"))
+# tktsDF <- read.csv(textConnection(tkts), header=FALSE)
