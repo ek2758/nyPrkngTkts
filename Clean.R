@@ -47,7 +47,7 @@ tktsDT <- fread("Data/tkts.csv", sep = ",", header=FALSE, verbose=TRUE)
 colnames(tktsDT) <- c("smmsNo","lcnsPlt","vhclMk","vhclBdy","vhclExp",
                       "violDt","violTime","violCd","violAddrss","violStrt","fine")
 
-# Check for extra spaces and delete them
+# Check for extra spaces and delete them; toupper() character columns
 head(tktsDT)
 summary(tktsDT)
 
@@ -60,12 +60,19 @@ max(sapply(tktsDT$smmsNo, nchar)) # S/B 10
 tktsDT$smmsNo <- str_trim(tktsDT$smmsNo, side="right")
 
 max(sapply(tktsDT$lcnsPlt, nchar)) # S/B 2
+tktsDT$lcnsPlt <- toupper(tktsDT$lcnsPlt)
 
 min(sapply(tktsDT$vhclMk, nchar)) # S/B <5
 tktsDT$vhclMk <- str_trim(tktsDT$vhclMk)
+tktsDT$vhclMk <- toupper(tktsDT$vhclMk)
 
 max(sapply(tktsDT$vhclBdy, nchar)) # S/B 4 ? invalid multibyte string
 tktsDT$vhclBdy <- str_trim(tktsDT$vhclBdy)
+tktsDT$vhclBdy <- toupper(tktsDT$vhclBdy)
+tktsDT$vhclBdy[1393178] <- "BUS" # Error at this line; hard-code with correct text; grep doesn't work
+tktsDT$vhclBdy[1567482] <- "BUS" # Something about unicode something or other?
+tktsDT$vhclBdy[1672408] <- "BUS"
+tktsDT$vhclBdy[1672413] <- "BUS"
 
 max(sapply(tktsDT$vhclExp, nchar)) # S/B 8
 nchar(tktsDT$violDt[1]) # S/B 8
@@ -77,7 +84,10 @@ tktsDT$violTime <- str_trim(tktsDT$violTime, side="right")
 max(sapply(tktsDT$violCd, nchar)) # S/B 2
 
 tktsDT$violAddrss <- str_trim(tktsDT$violAddrss)
+tktsDT$violAddrss <- toupper(tktsDT$violAddrss)
+
 tktsDT$violStrt <- str_trim(tktsDT$violStrt)
+tktsDT$violStrt <- toupper(tktsDT$violStrt)
 
 max(sapply(tktsDT$fine, nchar)) # S/B >2
 min(sapply(tktsDT$fine, nchar)) # S/B 0
@@ -88,7 +98,7 @@ summary(tktsDT)
 
 # Verify lcnsPlt
 ddply(tktsDT, .(lcnsPlt), "nrow") # Sum by license plate state; 69 codes?
-    # Do these codes need to be fixed? Verified? 99 code is missing?
+    # Do these codes need to be fixed? Verified? 99 code is missing ?
 
 # Verify vhclMk
 ddply(tktsDT, .(vhclMk), "nrow") # Wow, this one is going to need some cleaning. >7000 unique types.
@@ -108,18 +118,25 @@ ddply(tktsDT, .(violTime), "nrow") # Includes both military time and AM/PM!
 # Verify violCd
 violCds <- ddply(tktsDT, .(violCd), "nrow") # 1.4M red light-running violations
 
-# Verify violStrt
-redLightStreets <- ddply(subset(tktsDT, violCd==20), .(violStrt), "nrow")
-    # Needs some serious regex cleaning. Yay!    
-
-# Verify fine
-redLightFines <- ddply(subset(tktsDT, violCd==20), .(fine), "nrow")
-
-# Subset to red light-running violations
+# Subset -- just the red light-running violations
 redLights <- subset(tktsDT, violCd==20)
 nrow(redLights) # 1,371,785 red light-running violations caugh on Camera in Manhattan from 1 June 2005 - 31 July 2012
+
+nrow(subset(redLights, !is.na(vhclMk))) # All have makes
+nrow(subset(redLights, vhclMk=="UNKNO")) # 238,165 have unknown makes
+unknownMks <- subset(redLights, vhclMk=="UNKNO")
+
+nrow(subset(redLights, !is.na(vhclBdy))) # All have body types
+red.taxis <- subset(redLights, toupper(vhclBdy)=="TAXI") # 7,734 taxis
 
 head(redLights)
 redLightPlts <- ddply(redLights, .(lcnsPlt), "nrow")
 redLightMakes <- ddply(redLights, .(vhclMk), "nrow") # Looks like there are some models in here.
-redLightBdy <- ddply(redLights, .(vhclMk, vhclBdy), "nrow")
+
+# Verify violStrt
+redLightStreets <- ddply(redLights, .(violStrt), "nrow")
+    # Needs some serious regex cleaning. Yay!    
+
+# Verify fine
+redLightFines <- ddply(redLights, .(fine), "nrow")
+
