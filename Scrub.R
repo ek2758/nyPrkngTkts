@@ -1,71 +1,98 @@
 library(stringr)
 library(plyr)
 
+# Re-run from beginning
+redLightStreets <- redLightStreets[,1:2]
+
+redLightStreets$violStrt2 <- redLightStreets$violStrt # Keep original [violStrt], change copy [violStrt2]
+
 # Sort streets by frequency
 redLightStreets <- arrange(redLightStreets, desc(nrow))
 
 # Write regular expressions and add fix column in redLightStreets dataframe
-redLightStreets$violStrt[11284] <- "SPRING ST" # Another weird unicode error
+redLightStreets$violStrt2[11284] <- "SPRING ST" # Another weird unicode error
 
 # Initial scrub
-redLightStreets$violStrt <- str_replace(redLightStreets$violStrt, perl("WE?ST?"),"W")
-redLightStreets$violStrt <- str_replace(redLightStreets$violStrt, "EAST","E")
-redLightStreets$violStrt <- str_replace(redLightStreets$violStrt, perl(" NYC?$"),"")
-redLightStreets$violStrt <- str_replace(redLightStreets$violStrt, perl(" TRANSVERSE"),"")
-redLightStreets$violStrt <- str_replace(redLightStreets$violStrt, perl("\\(?\\bREAR\\b\\)? ?(OF )?"),"")
-redLightStreets$violStrt <- str_replace(redLightStreets$violStrt, perl("[RSWECNIF]/[SOWEN]/?C? "),"")
-redLightStreets$violStrt <- str_replace(redLightStreets$violStrt, perl("^OF "),"")
+for (i in 1:nrow(redLightStreets)) {
+    redLightStreets$violStrt2[i] <- str_replace(redLightStreets$violStrt2[i], perl("^[[:punct:]] ?"),"")
+    redLightStreets$violStrt2[i] <- str_replace(redLightStreets$violStrt2[i], perl("[WV]E?E?ST?"),"W")
+    redLightStreets$violStrt2[i] <- str_replace(redLightStreets$violStrt2[i], "EAST","E")
+    redLightStreets$violStrt2[i] <- str_replace(redLightStreets$violStrt2[i], perl(" NYC?$"),"")
+    redLightStreets$violStrt2[i] <- str_replace(redLightStreets$violStrt2[i], perl(" TRANSVERSE"),"")
+    redLightStreets$violStrt2[i] <- str_replace(redLightStreets$violStrt2[i], perl("\\(?\\bREAR\\b\\)? ?(OF )?"),"")
+    redLightStreets$violStrt2[i] <- str_replace(redLightStreets$violStrt2[i], perl("[RSWECNIF]/[SOWEN]/?C? (C/O )?"),"")
+    redLightStreets$violStrt2[i] <- str_replace(redLightStreets$violStrt2[i], perl("^OF "),"")
+    redLightStreets$violStrt2[i] <- str_replace(redLightStreets$violStrt2[i], perl("^\\d{1,3} {0,2}(COL|CD) AVE$"),"845 COLUMBUS")
+}
 
-# Re-run from beginning
-redLightStreets <- redLightStreets[,1:2]
-
-# Extract zipcodes, standardize syntax of avenues and streets, validate
+# Extract zipcodes, check for singular streets/avenues and replace with my convention
 pttrn.Zip <- "100\\d{2}"
-pttrn.Ave <- "\\d{1,3} {0,2}\\w{0,3} {0,3}(AVE(NUE)?|AV|AE|VE)" # Find any avenue
-pttrn.VAve <- "^\\d{1,3} {0,2}[A-Z]{0,3} {0,3}(AVE3?(NUE)?|AV|AE|VE)\\.?$" # Validate avenues
+pttrn.VAve <- "^\\d{1,3} {0,2}(\\D{0,3}) {0,3}(AVE3?(NUE)?|AV|AE|VE)\\.?$" # Validate avenues
 pttrn.Nmbr <- "\\d{1,3}"
 pttrn.VSt <- "^[EW] ?\\d{1,3} ?((ST)|(RD)|(TH)|(ND))? ?S?T?(REET)?$" # Validate streets
 pttrn.VSt2 <- "^R ?\\d{1,3} ?((ST)|(RD)|(TH)|(ND))? ?S?T?(REET)?$" # Typo for East side
 pttrn.Side <- "^\\w"
-redLightStreets$violStrt[which(str_detect(redLightStreets$violStrt, perl(pttrn.VAve)))]
-str_extract(str_extract(redLightStreets$violStrt[1489], perl(pttrn.VAve)), perl(pttrn.Nmbr))
+# pttrn.Ave <- "\\d{1,3} {0,2}\\w{0,3} {0,3}(AVE(NUE)?|AV|AE|VE)" # Find any avenue
+# pttrn.St <- "\\b[EW]\\b ?\\d{1,3} ?((ST)|(RD)|(TH)|(ND))?$" # Find any street at _end_ w/o street designation (otherwise match aves)
+# pttrn.St2 <- "[EW] ?\\d{1,3} ?((ST)|(RD)|(TH)|(ND))? S\\w+" # Find any street w/ street designation
+# redLightStreets$violStrt[which(str_detect(redLightStreets$violStrt, perl(pttrn.VAve)))]
+# str_extract(str_extract(redLightStreets$violStrt[which(str_detect(redLightStreets$violStrt, perl(pttrn.St)))], perl(pttrn.St)), perl(pttrn.Nmbr))
     for (i in 1:nrow(redLightStreets)) {
-        detect.Zip <- str_detect(redLightStreets$violStrt[i], perl(pttrn.Zip))
-        extract.Zip <- str_extract(redLightStreets$violStrt[i], perl(pttrn.Zip))
-        detect.VAve <- str_detect(redLightStreets$violStrt[i], perl(pttrn.VAve))
-        detect.Ave <- str_extract(str_extract(redLightStreets$violStrt[i], perl(pttrn.Ave)), perl(pttrn.Nmbr))
-        extract.Ave <- str_extract(redLightStreets$violStrt[i], perl(pttrn.Nmbr))
-        detect.VSt <- str_detect(redLightStreets$violStrt[i], perl(pttrn.VSt))
-        detect.VSt2 <- str_detect(redLightStreets$violStrt[i], perl(pttrn.VSt2))
-        extract.St <- str_extract(redLightStreets$violStrt[i], perl(pttrn.Nmbr))
-        extract.Side <- str_extract(redLightStreets$violStrt[i],perl(pttrn.Side))
+        detect.Zip <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Zip))
+        extract.Zip <- str_extract(redLightStreets$violStrt2[i], perl(pttrn.Zip))
+        
+        # Search for correct avenue syntax, replace with my convention
+        detect.VAve <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.VAve))  # e.g., 5229: "10TH AV"
+        match.VAve <- str_extract(redLightStreets$violStrt2[i], perl(pttrn.VAve))
+        extract.VAve <- str_extract(match.VAve, perl(pttrn.Nmbr))
+        replace.VAve <- str_c(extract.VAve, "AVE", sep=" ")
+        
+        # Search for correct street syntax, replace with my convention
+        detect.VSt <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.VSt))  # e.g., 1661: "W 66"
+        match.VSt <- str_extract(redLightStreets$violStrt2[i], perl(pttrn.VSt))
+        extract.VSt <- str_extract(match.VSt, perl(pttrn.Nmbr))
+        extract.VStSide <- str_extract(match.VSt, perl(pttrn.Side))
+        replace.VSt <- str_c(extract.VStSide, extract.VSt, "ST", sep=" ")
+        
+        detect.VSt2 <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.VSt2)) # e.g., 10509: "R67ST"
+        match.VSt2 <- str_extract(redLightStreets$violStrt2[i], perl(pttrn.VSt2))
+        extract.VSt2 <- str_extract(match.VSt2, perl(pttrn.Nmbr))
+        replace.VSt2 <- str_c("E", extract.VSt2, "ST", sep=" ")
+         
+        # Pull out existing zipcodes
         if (detect.Zip==TRUE) {
-            redLightStreets$Zip[i] <- extract.Zip
+            redLightStreets$zip[i] <- extract.Zip
         } else {
-            redLightStreets$Zip[i] <- ""
+            redLightStreets$zip[i] <- NA
         }
-        if (detect.Ave==TRUE) {
-            redLightStreets$fixStrt[i] <- str_c(extract.Ave, "AVE", sep=" ")
-        } else if (detect.St==TRUE) {
-            redLightStreets$fixStrt[i] <- str_c(extract.Side, extract.St, "ST", sep=" ")
-        } else if (detect.St2==TRUE) {
-            redLightStreets$fixStrt[i] <- str_c("E", extract.St, "ST", sep=" ")
-        }
-        else {
-            redLightStreets$fixStrt[i] <- ""
+        
+        # Standardize syntax of streets and avenues
+        if (detect.VAve==TRUE) {
+            redLightStreets$fixStrt[i] <- replace.VAve
+        } else if (detect.VSt==TRUE) {
+            redLightStreets$fixStrt[i] <- replace.VSt
+        } else if (detect.VSt2==TRUE) {
+            redLightStreets$fixStrt[i] <- replace.VSt2
+        } else {
+            redLightStreets$fixStrt[i] <- NA
         }
     }
-# Update data to run on fixed syntax
-redLightStreets$update <- ifelse(redLightStreets$Zip!="", redLightStreets$Zip,
-                                 ifelse(redLightStreets$fixStrt!="",
-                                        redLightStreets$fixStrt,
-                                        redLightStreets$violStrt))
 
-# Check spelling
+# # Update data to run on fixed syntax
+# redLightStreets$update <- ifelse(redLightStreets$Zip!="", redLightStreets$Zip,
+#                                  ifelse(redLightStreets$fixStrt!="",
+#                                         redLightStreets$fixStrt,
+#                                         redLightStreets$violStrt))
+
+# Check spelling of lettered streets and avenues
 # Mercer St
 pttrn.Mrcr <- "((1/2 )|(S/E/C )|(D?S ))?\\bMER[GCKE]?[AEO][IRSTW]?[STY]?\\b ?[BW]?((S?([CS]T)?\\.?R?(EE)?T?3?)|(AVE))?$"
 pttrn.Mrcr2 <- "\\bMER[CEV][ERUY]\\b ?(ST)?$"
 # str_replace(redLightStreets$violStrt[which(str_detect(redLightStreets$violStrt, perl(pttrn.Mrcr2)))], perl(pttrn.Mrcr2), "MERCER ST")
+
+# Spring St
+pttrn.Spr <- "\\bS[TP]RI(NG)?\\b {0,2}S?T?\\.?(REE)?T?"
+# str_replace(redLightStreets$violStrt[which(str_detect(redLightStreets$violStrt, perl(pttrn.Spr)))], perl(pttrn.Spr), "SPRING ST ")
 
 # Greene St
 pttrn.Grn <- "(FT |W )?GREEN[ENS]?( S?ST?\\.?(REET)? ?| AVE?| P[LT]| ON| SWT| T)( LN|WT)?"
@@ -96,8 +123,8 @@ pttrn.Prnc <- "(\\bPRIN\\b|([ANS][EW]? ?)?PRI?NCES? ?S?[CS]?T?\\.?(REET)?)"
 # str_replace(redLightStreets$violStrt[which(str_detect(redLightStreets$violStrt, perl(pttrn.Prnc)))], perl(pttrn.Prnc), "PRINCE ST ")
 
 # Bleecker St
-pttrn.Blkr <- "BLEEKE?RS? ?(ST)?T?(REET)?"
-# str_replace(redLightStreets$violStrt[which(str_detect(redLightStreets$violStrt, perl(pttrn.Blkr)))], perl(pttrn.Blkr), "BLEEKER ST")
+pttrn.Blkr <- "(A )?BLEEC?KE?RS? {0,2}(([ARS][DST]?)?[3\\.T]?(REET)?)?"
+# str_replace(redLightStreets$violStrt2[which(str_detect(redLightStreets$violStrt2, perl(pttrn.Blkr)))], perl(pttrn.Blkr), "BLEECKER ST ")
 
 # Wooster St
 pttrn.Wstr <- "(A )?WO?O?STE?R ?(S[TZ]?[IRT]?\\.?|AVE)?"
@@ -119,6 +146,8 @@ pttrn.RvrsdB <- "RIVERSIDES? BL?(VD)?\\d?"
 # Mott Ave
 pttrn.Mott <- "[BNW]?W MOTT|MOTTS ?(ST)?(REET)?"
 # str_replace(redLightStreets$violStrt[which(str_detect(redLightStreets$violStrt, perl(pttrn.Mott)))], perl(pttrn.Mott), "MOTT ST")
+pttrn.Mott2 <- "\\bMOTT\\b"
+# str_replace(redLightStreets$violStrt[which(str_detect(redLightStreets$violStrt, perl(pttrn.Mott2)))], perl(pttrn.Mott), "MOTT ST")
 
 # Elizabeth St
 pttrn.Liz <- "\\bELIZ\\b|ELIZA?BB?ET?H?I? ?&?ST\\.?(REET)?|(NW )?ELIZABET?H? ?(&)?(AVE)?"
@@ -132,10 +161,18 @@ pttrn.Clmbs <- "^[EW]? ?COLU?[MN]BUS( AV?E?(NUE)?)?$"
 pttrn.WBway <- "[WV]((EEST)|\\.)? {0,2}B(ROAD)?WAY/?\\d{0,2}( ST)?"
 # str_replace(redLightStreets$violStrt[which(str_detect(redLightStreets$violStrt, perl(pttrn.WBway)))], perl(pttrn.WBway), "W BROADWAY")
 # E Broadway -- whole of street is same zip code (see intersection)
+# N/S Broadway is just Broadway
+# Broadway Terrace -- whole of street is same zip code: 10040
+# Broadway Alley -- no such thing
 
 # Broadway -- this one is such a mess
-pttrn.Bway <- "\\bB(ROAD)?WAY?\\b"
-# redLightStreets$violStrt[which(str_detect(redLightStreets$violStrt, perl(pttrn.Bway)))]
+pttrn.Bway <- "[S\\./ ]? ?\\bB(ROAD)?WAY?\\b[\\. ]?/?(AVE?(NUE)?|\\bST\\b)?"
+str_replace(redLightStreets$violStrt2[which(str_detect(redLightStreets$violStrt2, perl(pttrn.Bway)))], perl(pttrn.Bway), " BROADWAY ")
+
+# Washington St
+pttrn.Wton <- "WASH(INGTON)?"
+str_replace(redLightStreets$violStrt2[which(str_detect(redLightStreets$violStrt2, perl(pttrn.Wton)))], perl(pttrn.Wton), " WASHINGTON ")
+
 
 # Adam Clayton Powell
 pttrn.ACP <- "(W )?ADAM ?(C(L?[AE]?YTON)?|POWELL) ?(POWELL)? ?(BL?(VD)?)?"
@@ -168,62 +205,62 @@ pttrn.HRD <- "\\b(\\d{2})?HRD[AR3N/]?S?\\b$|HA?RLE?M RI?VE?R ?[DPRP]?[DRL]?\\.?[
 
 # Macdougal Alley
 
-# Correct spelling
+# Correct spelling; e.g., row 4752 "W 114 ST BWAY RVRSDE"
 for (i in 1:nrow(redLightStreets)) {
-    detect.Mrcr <- str_detect(redLightStreets$update[i], perl(pttrn.Mrcr))
-    correct.Mrcr <- str_replace(redLightStreets$update[i], perl(pttrn.Mrcr), "MERCER ST")
-    detect.Mrcr2 <- str_detect(redLightStreets$update[i], perl(pttrn.Mrcr2))
-    correct.Mrcr2 <- str_replace(redLightStreets$update[i], perl(pttrn.Mrcr2), "MERCER ST")
-    detect.Spr <- str_detect(redLightStreets$update[i], perl(pttrn.Spr))
-    correct.Spr <- str_replace(redLightStreets$update[i], perl(pttrn.Spr), "SPRING ST")
-    detect.Grn <- str_detect(redLightStreets$update[i], perl(pttrn.Grn))
-    correct.Grn <- str_replace(redLightStreets$update[i], perl(pttrn.Grn), " GREENE ST")
-    detect.Crsby <- str_detect(redLightStreets$update[i], perl(pttrn.Crsby))
-    correct.Crsby <- str_replace(redLightStreets$update[i], perl(pttrn.Crsby), " CROSBY ST")
-    detect.Grnd <- str_detect(redLightStreets$update[i], perl(pttrn.Grnd))
-    correct.Grnd <- str_replace(redLightStreets$update[i], perl(pttrn.Grnd), "GRAND ST ")
-    detect.10Ave <- str_detect(redLightStreets$update[i], perl(pttrn.10Ave))
-    correct.10Ave <- str_replace(redLightStreets$update[i], perl(pttrn.10Ave), "10 AVE")
-    detect.Yrk <- str_detect(redLightStreets$update[i], perl(pttrn.Yrk))
-    correct.Yrk <- str_replace(redLightStreets$update[i], perl(pttrn.Yrk), "YORK AVE")
-    detect.Mdsn <- str_detect(redLightStreets$update[i], perl(pttrn.Mdsn))
-    correct.Mdsn <- str_replace(redLightStreets$update[i], perl(pttrn.Mdsn), "MADISON AVE")
-    detect.Prnc <- str_detect(redLightStreets$update[i], perl(pttrn.Prnc))
-    correct.Prnc <- str_replace(redLightStreets$update[i], perl(pttrn.Prnc), "PRINCE ST ")
-    detect.Blkr <- str_detect(redLightStreets$update[i], perl(pttrn.Blkr))
-    correct.Blkr <- str_replace(redLightStreets$update[i], perl(pttrn.Blkr), "BLEEKER ST")
-    detect.Wstr <- str_detect(redLightStreets$update[i], perl(pttrn.Wstr))
-    correct.Wstr <- str_replace(redLightStreets$update[i], perl(pttrn.Wstr), "WOOSTER ST ")
-    detect.Ldlw <- str_detect(redLightStreets$update[i], perl(pttrn.Ldlw))
-    correct.Ldlw <- str_replace(redLightStreets$update[i], perl(pttrn.Ldlw), "LUDLOW ST")
-    detect.Rvrsd <- str_detect(redLightStreets$update[i], perl(pttrn.Rvrsd))
-    correct.Rvrsd <- str_replace(redLightStreets$update[i], perl(pttrn.Rvrsd), "RIVERSIDE DR")
-    detect.Rvrsd2 <- str_detect(redLightStreets$update[i], perl(pttrn.Rvrsd2))
-    correct.Rvrsd2 <- str_replace(redLightStreets$update[i], perl(pttrn.Rvrsd2), "RIVERSIDE DR")
-    detect.RvrsdB <- str_detect(redLightStreets$update[i], perl(pttrn.RvrsdB))
-    correct.RvrsdB <- str_replace(redLightStreets$update[i], perl(pttrn.RvrsdB), "RIVERSIDE BLVD")
-    detect.Mott <- str_detect(redLightStreets$update[i], perl(pttrn.Mott))
-    correct.Mott <- str_replace(redLightStreets$update[i], perl(pttrn.Mott), "MOTT ST")
-    detect.Liz <- str_detect(redLightStreets$update[i], perl(pttrn.Liz))
-    correct.Liz <- str_replace(redLightStreets$update[i], perl(pttrn.Liz), "ELIZABETH ST")
-    detect.Clmbs <- str_detect(redLightStreets$update[i], perl(pttrn.Clmbs))
-    correct.Clmbs <- str_replace(redLightStreets$update[i], perl(pttrn.Clmbs), "COLUMBUS AVE")
-    detect.WBway <- str_detect(redLightStreets$update[i], perl(pttrn.WBway))
-    correct.WBway <- str_replace(redLightStreets$update[i], perl(pttrn.WBway), "W BROADWAY")
-    detect.ACP <- str_detect(redLightStreets$update[i], perl(pttrn.ACP))
+    detect.Mrcr <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Mrcr))
+    correct.Mrcr <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Mrcr), "MERCER ST")
+    detect.Mrcr2 <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Mrcr2))
+    correct.Mrcr2 <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Mrcr2), "MERCER ST")
+    detect.Spr <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Spr))
+    correct.Spr <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Spr), "SPRING ST")
+    detect.Grn <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Grn))
+    correct.Grn <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Grn), " GREENE ST")
+    detect.Crsby <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Crsby))
+    correct.Crsby <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Crsby), " CROSBY ST")
+    detect.Grnd <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Grnd))
+    correct.Grnd <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Grnd), "GRAND ST ")
+    detect.10Ave <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.10Ave))
+    correct.10Ave <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.10Ave), "10 AVE")
+    detect.Yrk <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Yrk))
+    correct.Yrk <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Yrk), "YORK AVE")
+    detect.Mdsn <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Mdsn))
+    correct.Mdsn <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Mdsn), "MADISON AVE")
+    detect.Prnc <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Prnc))
+    correct.Prnc <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Prnc), "PRINCE ST ")
+    detect.Blkr <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Blkr))
+    correct.Blkr <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Blkr), "BLEEKER ST")
+    detect.Wstr <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Wstr))
+    correct.Wstr <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Wstr), "WOOSTER ST ")
+    detect.Ldlw <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Ldlw))
+    correct.Ldlw <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Ldlw), "LUDLOW ST")
+    detect.Rvrsd <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Rvrsd))
+    correct.Rvrsd <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Rvrsd), "RIVERSIDE DR")
+    detect.Rvrsd2 <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Rvrsd2))
+    correct.Rvrsd2 <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Rvrsd2), "RIVERSIDE DR")
+    detect.RvrsdB <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.RvrsdB))
+    correct.RvrsdB <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.RvrsdB), "RIVERSIDE BLVD")
+    detect.Mott <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Mott))
+    correct.Mott <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Mott), "MOTT ST")
+    detect.Liz <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Liz))
+    correct.Liz <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Liz), "ELIZABETH ST")
+    detect.Clmbs <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Clmbs))
+    correct.Clmbs <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Clmbs), "COLUMBUS AVE")
+    detect.Bway <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Bway))
+    correct.Bway <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Bway), " BROADWAY ")
+    detect.ACP <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.ACP))
     replace.ACP <- "ADAM CLAYTON POWELL"
-    detect.FD <- str_detect(redLightStreets$update[i], perl(pttrn.FD))
-    correct.FD <- str_replace(redLightStreets$update[i], perl(pttrn.FD), "FREDERICK DOUGLASS BLVD")
-    detect.Mac <- str_detect(redLightStreets$update[i], perl(pttrn.Mac))
-    correct.Mac <- str_replace(redLightStreets$update[i], perl(pttrn.Mac), "MACDOUGAL ST")
-    detect.HHud <- str_detect(redLightStreets$update[i], perl(pttrn.HHud))
+    detect.FD <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.FD))
+    correct.FD <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.FD), "FREDERICK DOUGLASS BLVD")
+    detect.Mac <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.Mac))
+    correct.Mac <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.Mac), "MACDOUGAL ST")
+    detect.HHud <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.HHud))
     replace.HHud <- "HENRY HUDSON PKWY"
-    detect.FDR <- str_detect(redLightStreets$update[i], perl(pttrn.FDR))
-    correct.FDR <- str_replace(redLightStreets$update[i], perl(pttrn.FDR), "FDR DR")
-    detect.CPKW <- str_detect(redLightStreets$update[i], perl(pttrn.CPKW))
-    correct.CPKW <- str_replace(redLightStreets$update[i], perl(pttrn.CPKW), "CENTRAL PARK WEST")
-    detect.HRD <- str_detect(redLightStreets$update[i], perl(pttrn.HRD))
-    correct.HRD <- str_replace(redLightStreets$update[i], perl(pttrn.HRD), "HARLEM RIVER DR")
+    detect.FDR <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.FDR))
+    correct.FDR <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.FDR), "FDR DR")
+    detect.CPKW <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.CPKW))
+    correct.CPKW <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.CPKW), "CENTRAL PARK WEST")
+    detect.HRD <- str_detect(redLightStreets$violStrt2[i], perl(pttrn.HRD))
+    correct.HRD <- str_replace(redLightStreets$violStrt2[i], perl(pttrn.HRD), "HARLEM RIVER DR")
     
 
     if (detect.Mrcr==TRUE) {
@@ -281,14 +318,31 @@ for (i in 1:nrow(redLightStreets)) {
     } else if (detect.HRD==TRUE) {
         redLightStreets$spStrt[i] <- correct.HRD
     } else {
-        redLightStreets$spStrt[i] <- ""
+        redLightStreets$spStrt[i] <- NA
     }
 }
 
-redLightStreets$check <- ifelse(redLightStreets$Zip!="", redLightStreets$Zip,
-                                  ifelse(redLightStreets$spStrt!="",
-                                         redLightStreets$spStrt,
-                                         redLightStreets$fixStrt))
+# Trim spaces
+redLightStreets$spStrt <- str_trim(redLightStreets$spStrt)
+
+# Check for singular street/avenue syntax and move to fixed column
+pttrn.VName <- "^\\w+ (ST|AVE|BLVD|BROADWAY|DR|WEST)$"
+redLightStreets$spStrt[which(str_detect(redLightStreets$spStrt, perl(pttrn.VName)))]
+
+    for (i in 1:nrow(redLightStreets)) {
+        detect.VName <- str_detect(redLightStreets$spStrt[i], perl(pttrn.VName))
+        redLightStreets$fixStrt[i] <- ifelse(detect.VName==TRUE & is.na(redLightStreets$fixStrt[i]),
+                                             redLightStreets$spStrt[i],
+                                             redLightStreets$fixStrt[i])
+    }
+
+
+redLightStreets$check <- ifelse(!is.na(redLightStreets$Zip), # zip exists
+                                redLightStreets$Zip, # see zip
+                                ifelse(!is.na(redLightStreets$spStrt), # spelling corrected
+                                       redLightStreets$spStrt, # see corrected spelling
+                                       redLightStreets$fixStrt)) # else see corrected st/ave syntax
+
 redLightStreets$update2 <- ifelse(redLightStreets$Zip!="", redLightStreets$Zip,
                                 ifelse(redLightStreets$spStrt!="",
                                        redLightStreets$spStrt,
@@ -356,7 +410,7 @@ redLightStreets$update[which(str_detect(redLightStreets$update, perl(pttrn.X)))]
     pttrn.CPKE <- "E( \\d{2}) ?(ST)? ?CENTRAL"
     pttrn.CPKS <- "CENTRAL P(AR)?K ((200?)|(SO?(UTH)?))"
     pttrn.HRP <- "HARLEM RIVE?R PK"
-pttrn.Spr <- "\\bS[TP]RI(NG)?\\b"
+
 pttrn.Grn <- "\\b(\\d{2})?GREEN[ENS]?T?\\b [^W]"
 pttrn.Crsby <- "CRO?[BS][BS]Y"
 pttrn.Grnd <- "GRA?ND"
