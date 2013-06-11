@@ -55,6 +55,8 @@ colnames(tktsDT) <- c("smmsNo","lcnsPlt","vhclMk","vhclBdy","vhclExp",
 summary(tktsDT)
 head(tktsDT)
 
+length(unique(tktsDT$smmsNo)) # Summons number is unique key
+
 # Correct classes
 tktsDT$violCd <- as.character(tktsDT$violCd)
 tktsDT$violDt2 <- as.Date(as.character(tktsDT$violDt), format="%Y%m%d") # Create dates
@@ -173,8 +175,6 @@ tktsDT$timeEDT <- as.POSIXct(strptime(str_c(tktsDT$violDt2, tktsDT$time2, sep=" 
 violCds <- ddply(tktsDT, .(violCd), "nrow")
 violCds <- arrange(violCds, as.numeric(violCd)) # Invalid codes 1,2,3 ?? Focus on fines instead?
 
-redLight <- as.data.frame(subset(tktsDT, violCd==7))
-
 busLane <- subset(tktsDT, violCd %in% c(18,19))
 nrow(busLane)
 head(busLane)
@@ -213,8 +213,15 @@ subset(tktsCds, ctgry=="D", select=c("definition"))
 # C: block handicap zone/pedestrian ramp
 # D: overnight tractor-trailer parking
 
+# --------------------
 # Verify vehicle makes
-violMks <- ddply(tktsDT, .(vhclMk), "nrow")
+# --------------------
+
+# Replace missing vehicle makes with body types (contains some hidden models)
+tktsDT$vhclMk2 <- with(tktsDT, ifelse(nchar(as.character(vhclMk))==0, vhclBdy, as.character(vhclMk)))
+
+vhclMks <- as.data.frame(tktsDT[,list(nrow = length(smmsNo)), by=vhclMk2]) # Count types. Lightning fast.
+# violMks <- ddply(tktsDT, .(vhclMk), "nrow") # Does same thing as above, but painfully slow
 
 # Verify street names
 
@@ -233,4 +240,12 @@ tktsDT$violStrt[2722843] <- "CATHERINE SLIP"
 
 violStreets <- ddply(tktsDT, .(violStrt), "nrow")
 
+# Verify vehicle body types
+setkey(tktsDT, vhclBdy) # re-order table by body type to optimize summarization
+vhclBodies <- as.data.frame(tktsDT[,list(nrow = length(smmsNo)), by=vhclBdy]) # Count types
+
+# This takes for.EVER.
+# bodyTyps <- ddply(tktsDT, .(vhclBdy), "nrow") # Use data.table instead
+# bodyTyps <- arrange(bodyTyps, desc(nrow))
+# head(bodyTyps)
 

@@ -16,7 +16,7 @@ pttrn.slash <- "\\b\\D/\\D\\b"
 pttrn.NYC <- "\\bNYC\\b"
 pttrn.punct <- "^[[:punct:]] ?"
 
-for (i in 1:nrow(violStreets)) {
+violStrt2 <- foreach(i=1:nrow(violStreets)) %do% {
     detect.punct <- str_detect(violStreets$violStrt[i], perl(pttrn.punct))
     detect.slash <- str_detect(violStreets$violStrt[i], perl(pttrn.slash))
     
@@ -24,9 +24,13 @@ for (i in 1:nrow(violStreets)) {
     replace.slash <- str_trim(str_replace(violStreets$violStrt[i], perl(pttrn.slash), ""))
     replace.NYC <- str_trim(str_replace(violStreets$violStrt[i], perl(pttrn.NYC), ""))
     
-    violStreets$violStrt2[i] <- ifelse(detect.punct==TRUE, replace.punct, 
-                                       ifelse(detect.slash==TRUE, replace.slash, replace.NYC))
+    ifelse(detect.punct==TRUE, replace.punct, 
+           ifelse(detect.slash==TRUE, replace.slash, replace.NYC))
 }
+
+violStrt2.DF <- ldply(violStrt2)
+violStreets <- cbind(violStreets, violStrt2.DF)
+colnames(violStreets)[ncol(violStreets)] <- "violStrt2"
 
 # Start again
 violStreets <- violStreets[,1:3]
@@ -36,17 +40,25 @@ violStreets <- violStreets[,1:3]
 # ----------------
 pttrn.6thAve <- "^[\\D ]{0,}(6|SIX) ?T?\\D{0,2} {0,2}([AS] ?V ?E?([NU][NU]E)?|[AV]E|VAE|AEV)"
 pttrn.AveAmer <- "AVE? ?N?(UE)?S? {0,2}([IO]F|AT)? ?(T[EH][EH])? ?AME[NR]"
-pttrn.7thAve <- "^[\\D ]{0,}(7|SEVEN) ?\\D{0,3} {0,2}(A ?[V\\.][EW]?(NU ?E)?|[AV]E|AEV|VAE|AV\\.?)"
+pttrn.7thAveS <- "^[\\D ]{0,}(7|SEVEN) ?\\D{0,3} {0,2}(A ?[V\\.][EW]?(NU ?E)?|[AV]E|AEV|VAE|AV\\.?)"
+pttrn.South <- "\\bS[\\.0O]?(UT)?H?\\b"
 pttrn.7thSouth <- "^7TH S$"
 pttrn.Bleecker <- "BLEE?C?KE?RS?|BLKR"
 pttrn.Street <- "SX?T(REEE?T)?\\.?$"
 pttrn.West <- "^W[\\. ]?[(EST)\\d ]"
 pttrn.Nmbr <- "\\d{1,3}( \\d{1,3})?"
 
-for (i in 1:nrow(violStreets)) {
+# Check grep pattern
+violStreets$violStrt[which(str_detect(violStreets$violStrt2, perl(pttrn.7thAve)) & 
+                               str_detect(violStreets$violStrt2, perl(pttrn.South))|
+                               str_detect(violStreets$violStrt2, perl(pttrn.7thSouth)))]
+
+# Fix complicated street names
+violStrt3 <- foreach(i=1:nrow(violStreets)) %do% {
     detect.6thAve <- str_detect(violStreets$violStrt2[i], perl(pttrn.6thAve))
     detect.AveAmer <- str_detect(violStreets$violStrt2[i], perl(pttrn.AveAmer))
     detect.7thAve <- str_detect(violStreets$violStrt2[i], perl(pttrn.7thAve))
+    detect.South <- str_detect(violStreets$violStrt2[i], perl(pttrn.South))
     detect.7thSouth <- str_detect(violStreets$violStrt2[i], perl(pttrn.7thSouth))
     detect.Bleecker <- str_detect(violStreets$violStrt2[i], perl(pttrn.Bleecker))
     detect.West <- str_detect(violStreets$violStrt2[i], perl(pttrn.West))
@@ -54,19 +66,21 @@ for (i in 1:nrow(violStreets)) {
     
     replace.Street <- str_replace(violStreets$violStrt2[i], perl(pttrn.Street), "ST")
     
-    if(detect.6thAve==TRUE | detect.AveAmer==TRUE) {
-        violStreets$violStrt3[i] <- "6TH AVE"
-    } else if(detect.7thAve==TRUE | detect.7thSouth==TRUE) {
-        violStreets$violStrt3[i] <- "7TH AVE"
-    } else if(detect.Bleecker==TRUE) {
-        violStreets$violStrt3[i] <- "BLEECKER ST"
-    } else if(detect.West==TRUE & detect.Street==TRUE) {
-        violStreets$violStrt3[i] <- str_c("W", str_extract(violStreets$violStrt2[i], perl(pttrn.Nmbr)), "ST", sep=" ")
+    if(detect.6thAve | detect.AveAmer) {
+        "6TH AVE"
+    } else if(detect.7thAve & detect.South | detect.7thSouth) {
+        "7TH AVE S"
+    } else if(detect.Bleecker) {
+        "BLEECKER ST"
+    } else if(detect.West & detect.Street) {
+        str_c("W", str_extract(violStreets$violStrt2[i], perl(pttrn.Nmbr)), "ST", sep=" ")
     } else {
-        violStreets$violStrt3[i] <- replace.Street
+        replace.Street
     }
 }
-
+violStrt3.DF <- ldply(violStrt3)
+violStreets <- cbind(violStreets, violStrt3.DF)
+colnames(violStreets)[ncol(violStreets)] <- "violStrt3"
 
 # -------------------------------
 # Calculate Levenshtein distances
@@ -77,7 +91,7 @@ levenshtein.St <- function(x) {
 
 build.levenshteins.St <- function(x) {
     lev.6thAve <- levenshtein.St("6TH AVE")
-    lev.7thAve <- levenshtein.St("7TH AVE")
+    lev.7thAveS <- levenshtein.St("7TH AVE S")
     lev.Carmine <- apply(levenshtein.St(c("CARMINE","CARMINE ST")), 2, max)
     lev.Cornelia <- apply(levenshtein.St(c("CORNELIA","CORNELIA ST")), 2, max)
     lev.Jones <- apply(levenshtein.St(c("JONES","JONES ST")), 2, max)
@@ -86,7 +100,7 @@ build.levenshteins.St <- function(x) {
     lev.Grove <- apply(levenshtein.St(c("GROVE","GROVE ST")), 2, max)
     lev.Greenwich <- apply(levenshtein.St(c("GREENWICH","GREENWICH AVE")), 2, max)
     
-    x <- rbind(lev.6thAve, lev.7thAve, lev.Carmine, lev.Cornelia, lev.Jones,
+    x <- rbind(lev.6thAve, lev.7thAveS, lev.Carmine, lev.Cornelia, lev.Jones,
                lev.W4th, lev.Bleecker, lev.Grove, lev.Greenwich)
     
     x <- as.data.frame(t(x))
@@ -95,7 +109,7 @@ build.levenshteins.St <- function(x) {
 }
 
 levsDF.St <- build.levenshteins.St(levs)
-colnames(levsDF.St) <- c("lev.6thAve", "lev.7thAve", "lev.Carmine", "lev.Cornelia", "lev.Jones",
+colnames(levsDF.St) <- c("lev.6thAve", "lev.7thAveS", "lev.Carmine", "lev.Cornelia", "lev.Jones",
                          "lev.W4th", "lev.Bleecker", "lev.Grove", "lev.Greenwich")
 
 # -----------------------------------------------
@@ -117,7 +131,7 @@ apply(levsDF.St, 2, length) # 2 indicates by column
 
 # These appear legit
 subset(levsDF.St, lev.name=="lev.6thAve" & lev.scores>=0.9, select=c("violStrt","lev.name","lev.scores"))
-subset(levsDF.St, lev.name=="lev.7thAve" & lev.scores>=0.9, select=c("violStrt","lev.name","lev.scores"))
+subset(levsDF.St, lev.name=="lev.7thAveS" & lev.scores>=0.9, select=c("violStrt","lev.name","lev.scores"))
 subset(levsDF.St, lev.name=="lev.W4th" & lev.scores>=0.9, select=c("violStrt","lev.name","lev.scores"))
 
 subset(levsDF.St, lev.name=="lev.Carmine" & lev.scores>=0.83, select=c("violStrt","lev.name","lev.scores"))
@@ -133,7 +147,7 @@ subset(levsDF.St, lev.name=="lev.Greenwich" & lev.scores>=0.73, select=c("violSt
 # Assign 1 to column translate for vehicle make corrections
 translate.St <- function(x) {
     foreach(i=1:nrow(x)) %do%
-        if(x$lev.name[i] %in% c("lev.6thAve","lev.7thAve","lev.W4th") & x$lev.scores[i]>=0.9) {
+        if(x$lev.name[i] %in% c("lev.6thAve","lev.7thAveS","lev.W4th") & x$lev.scores[i]>=0.9) {
             return(1)
         } else if(x$lev.name[i] %in% "lev.Carmine" & x$lev.scores[i]>=0.83) {
             return(1)
@@ -160,8 +174,8 @@ for (i in 1:nrow(levsDF.StT)) {
     
     if(n == "lev.6thAve") {
         levsDF.StT$stNames[i] <- "6TH AVE"
-    } else if(n == "lev.7thAve") {
-        levsDF.StT$stNames[i] <- "7TH AVE"
+    } else if(n == "lev.7thAveS") {
+        levsDF.StT$stNames[i] <- "7TH AVE S"
     } else if(n == "lev.Bleecker") {
         levsDF.StT$stNames[i] <- "BLEECKER ST"
     } else if(n == "lev.Carmine") {
