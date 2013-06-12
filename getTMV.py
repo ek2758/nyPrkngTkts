@@ -5,19 +5,23 @@ import time
 import itertools
 # itertools.islice? # Describes function
 
-reader = csv.reader(open('nyData/makesEdmundsTktSubset.csv', 'rb'))
+reader = csv.reader(open('nyData/styleIdsEdmunds.csv', 'rU')) 
+#'rb' had been working but stopped ??
 
-url = 'http://api.edmunds.com/v1/api/vehicle/modelrepository/findusedmodelsbymakeid?makeId=%s'
+url = 'http://api.edmunds.com/v1/api/tmv/tmvservice/calculatetypicallyequippedusedtmv?styleid=%s'
 
 # w = csv.DictWriter(open('nyData/subModelsEdmunds.csv', 'wb+'), ('makeId','makeNiceName', 'niceName', 'subModels'), extrasaction='ignore')
 
-query_params = { 'api_key': 'HIDDEN',
+query_params = { 'zip': 'HIDDEN',
+				 'api_key': 'HIDDEN',
 			  	 'fmt': 'json'
 			   }
 
 #nextId = reader.next()
 
-for id in itertools.islice(reader,50):
+# for id in itertools.islice(reader,100): # 3,105 styleIds
+for id in itertools.islice(reader,2907,3105):
+
 	url2 = url % id[0]
 	print("working on... ", url2)
 	time.sleep(2) # Time delay of 2 seconds: API call rate limit set at 2 queries/second
@@ -28,14 +32,10 @@ for id in itertools.islice(reader,50):
 
 # 	print(json.dumps(data,indent=2))
 	
-	makeModels = [car['subModels'] for car in data['modelHolder']]
-	
-	for s in makeModels:
-		if 'USED' in s.keys():
-			model = [(id[0], s['USED'][0]['name'], s['USED'][0]['identifier'], s['USED'][0]['styleIds'])]
-			with (open('nyData/subModelsEdmunds.csv', 'a')) as w:
-				writer = csv.writer(w)
-				writer.writerows(model)
+	tmv = [(id[0], data['tmv']['nationalBasePrice']['usedTmvRetail'])]
+	with (open('nyData/tmvEdmunds.csv', 'a')) as w:
+			writer = csv.writer(w)
+			writer.writerows(tmv)
 
 
 # Writes JSON dump to temporary file.
